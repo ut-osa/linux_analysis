@@ -1,6 +1,7 @@
 open Cil
 open Allocs
 open Typever
+open Typeapi
 open Machine32
 
 
@@ -51,4 +52,5 @@ let () =
    (* Run the analysis *)
    flush stderr;
    prerr_endline "ANALYZING";
-   print_typever kernel
+   print_typever kernel;
+   print_typeapi kernel

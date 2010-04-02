@@ -7,7 +7,6 @@ let type_table = Hashtbl.create 1024
 
 let out_do_verify = ref stdout
 let out_go_verify = ref stdout
-let out_struct_list = ref stdout
 
 let type_id t =
    let ts = typeSig t in
@@ -45,10 +44,7 @@ let print_comp_field comp_t f =
    | Some width -> 
       ignore (fprintf !out_do_verify "/*bitfield %s*/" f.fname)
 
-let print_defn g =
-   dumpGlobal !printerForMaincil !out_struct_list g
-
-class visitTypes = object(self)
+class printTypeVer = object(self)
    inherit nopCilVisitor
    method vglob (g : global) =
       match g with
@@ -57,12 +53,7 @@ class visitTypes = object(self)
          print_comp_fn_begin comp_t;
          List.iter (print_comp_field comp_t) comp.cfields;
          print_comp_fn_end comp_t;
-         print_defn g;
          DoChildren
-      | GType _
-      | GCompTagDecl _
-      | GEnumTag _
-      | GEnumTagDecl _ -> print_defn g; DoChildren
       | g -> DoChildren
 
 end
@@ -85,7 +76,7 @@ let print_go_verify () =
 let print_typever cil_file =
    out_do_verify := open_out "do_verify.c";
    out_go_verify := open_out "go_verify.h";
-   out_struct_list := open_out "type_list.h";
    output_string !out_do_verify "#include \"go_verify.h\"\n\n";
-   ignore (visitCilFileSameGlobals (new visitTypes) cil_file);
+   visitCilFileSameGlobals (new printTypeVer) cil_file;
+
    print_go_verify ()
