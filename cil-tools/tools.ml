@@ -24,3 +24,5 @@ let loc_str l =
 let print_loc l =
    print_endline (loc_str l)
 
+let gen_src_dir = Sys.argv.(2)
+let output_file name = open_out (Filename.concat gen_src_dir name)

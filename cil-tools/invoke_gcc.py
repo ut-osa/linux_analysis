@@ -23,39 +23,50 @@ output_dir = None
 output_base = None
 
 while True:
-	try:
-		arg = i.next()
-	except StopIteration:
-		break
+   try:
+      arg = i.next()
+   except StopIteration:
+      break
 
-	if arg == '-cilo':
-		output_base = os.path.abspath(i.next())
-		continue
+   if arg == '-cilo':
+      output_base = os.path.abspath(i.next())
+      continue
 
-	if arg == '-o':
-		all_args.append(arg)
-		arg = i.next()
-		output_dir,output = os.path.split(arg)
-	elif arg == '-c':
-		compile_cmd = True
-	elif arg[-2:] == '.S':
-		asm_input = True
-	else:
-		pre_args.append(arg)
+   if arg == '-o':
+      all_args.append(arg)
+      arg = i.next()
+      output_dir,output = os.path.split(arg)
+   elif arg == '-c':
+      compile_cmd = True
+   elif arg[-2:] == '.S':
+      asm_input = True
+   else:
+      pre_args.append(arg)
 
-	all_args.append(arg)
+   all_args.append(arg)
 
 
 if compile_cmd and not asm_input:
-	output_dir = os.path.join(output_base, output_dir)
-	output = os.path.join(output_dir, 'i'+output+'.i')
-	pre_args += ['-E', '-o', output]
-	try:
-		os.makedirs(output_dir)
-	except OSError as (err, strerror):
-		if err != errno.EEXIST:
-			raise
-	ret = os.spawnvp(os.P_WAIT, 'gcc', pre_args)
+   output_dir = os.path.join(output_base, output_dir)
+   output_file = 'i'+output+'.i'
+   output = os.path.join(output_dir, output_file)
+   pre_args += ['-E', '-o', output]
+   try:
+      os.makedirs(output_dir)
+   except OSError as (err, strerror):
+      if err != errno.EEXIST:
+         raise
+
+   ret = os.spawnvp(os.P_WAIT, 'gcc', pre_args)
+   if ret is not 0:
+      sys.exit(ret)
+
+   if output_file != 'i.tmp_vdso32-setup.o.i':
+      doone_exe = os.path.join(os.path.dirname(sys.argv[0]), 'doone')
+      ret = os.spawnvp(os.P_WAIT, doone_exe, [doone_exe, output])
+      if ret is not 0:
+         sys.exit(ret)
+   os.unlink(output)
 
 ret = os.spawnvp(os.P_WAIT, 'gcc', all_args)
 sys.exit(ret)

@@ -1,9 +1,7 @@
 open Cil
 open Printf
 
-let out_struct_list = ref stdout
-let out_pre_defs = ref stdout
-let out_kptrs = ref stdout
+let out_type_list = ref stdout
 
 type kptr =
 | KPtr of int * typ * typ
@@ -50,14 +48,26 @@ let anon_comp c =
 
 let safe_cpp name =
    match name with
-   | "private" -> "_C_private"
-   | "class" -> "_C_class"
-   | "this" -> "_C_this"
-   | "true" -> "_C_true"
-   | "false" -> "_C_false"
-   | "not" -> "_C_not"
-   | "typename" -> "_C_typename"
+   | "private"
+   | "class"
+   | "this"
+   | "true"
+   | "false"
+   | "not"
+   | "typename"
+   | "new"
+   | "delete"
+   | "bool"
+   | "export"
+   | "template"
+   | "virtual" -> ("_C_" ^ name)
    | _ -> name
+
+let cpp_builtin name =
+   match name with
+   | "bool"
+   | "wchar_t" -> true
+   | _ -> false
 
 (* Cil printer class that expands anonymous unnamed inner struct/union *)
 class anonPrinterClass = object(self)
@@ -71,28 +81,35 @@ class anonPrinterClass = object(self)
 end
 let anonPrinter = new anonPrinterClass
 
-let print_pre_def g =
-   dumpGlobal !printerForMaincil !out_pre_defs g
-
 let print_defn g =
    match g with
    | GCompTag (comp, loc) when anon_comp comp -> ()
    | GCompTag (comp, loc) -> 
-      dumpGlobal anonPrinter !out_struct_list g
-   | _ -> dumpGlobal !printerForMaincil !out_struct_list g
+      dumpGlobal anonPrinter !out_type_list g
+   | _ -> dumpGlobal !printerForMaincil !out_type_list g
+
+class printEnums = object(self)
+   inherit nopCilVisitor
+   method vglob (g : global) =
+      match g with
+      | GEnumTag _ -> print_defn g; DoChildren
+      | _ -> DoChildren
+end
 
 class printTypeDefs = object(self)
    inherit nopCilVisitor
    method vglob (g : global) =
       match g with
-      | GType ({tname="bool"}, _) -> DoChildren
-      | GType (_, _) -> print_pre_def g; DoChildren
+      (*
+      | GType ({tname=n}, _) when (cpp_builtin n) -> DoChildren
+      | GType _ -> print_defn g; DoChildren
+      *)
 
-      | GEnumTag _ -> print_pre_def g; DoChildren
+      (* | GEnumTag _ -> print_pre_def g; DoChildren *)
 
       | GCompTag _
-      | GCompTagDecl _
-      | GEnumTagDecl _ -> print_defn g; DoChildren
+      | GCompTagDecl _ -> print_defn g; DoChildren
+      (* | GEnumTagDecl _ -> print_defn g; DoChildren *)
       | g -> DoChildren
 end
 
@@ -108,10 +125,6 @@ let rec safe_fields fields =
    | fi :: rest -> safe_field fi :: safe_fields rest
    | [] -> []
 
-let rec safe_args args =
-   match args with
-   | (name, t, attr) :: rest -> (safe_cpp name, t, attr) :: safe_args rest
-   | [] -> []
 
 (* Change pointer fields to be kptr structs *)
 let kptr_field fi =
@@ -122,28 +135,73 @@ let rec kptr_fields fields =
    | fi :: rest -> kptr_field fi :: kptr_fields rest
    | [] -> []
 
-(* Go through all types, change structure names, field names, and
- replace with kptrs *)
+let rec safe_args args visitor =
+   let safe_arg (name, t, attr) =
+      (safe_cpp name, visitCilType visitor t, attr) in
+   match args with
+   | arg :: rest -> safe_arg arg :: safe_args rest visitor
+   | [] -> []
+
 class safeCppTypes = object(self)
    inherit nopCilVisitor
    method vtype (t : typ) = 
+      let self_visitor = (self :> cilVisitor) in
+      match t with
+      | TFun (ret, Some args, vararg, attr) ->
+         let ret = visitCilType self_visitor ret in
+         let args = safe_args args self_visitor in
+         ChangeTo (TFun (ret, Some args, vararg, attr))
+
+      | TPtr (pt, attr) -> 
+         let pt = visitCilType self_visitor pt in
+         (match pt with 
+         | TFun _ -> DoChildren
+         | _ ->
+            let KPtr(id, orig_t, kptr_t) = kptr_typ pt in
+            ChangeTo kptr_t)
+
+      | TNamed _ -> ChangeTo (unrollType t)
+
+      | _ -> DoChildren
+end
+let safeTypeVisitor = new safeCppTypes
+
+let rec safe_cfields cfields visitor =
+   let safe_cfield fi =
+      fi.fname <- safe_cpp fi.fname;
+      fi.ftype <- visitCilType visitor fi.ftype;
+      fi.fattr <- visitCilAttributes safeTypeVisitor fi.fattr;
+      fi in
+   match cfields with
+   | fi :: rest -> safe_cfield fi :: safe_cfields rest visitor
+   | [] -> []
+
+class safeCppFields = object(self)
+   inherit nopCilVisitor
+   method vtype (t : typ) =
+      let self_visitor = (self :> cilVisitor) in
       match t with
       | TComp (comp, attr) ->
          comp.cname <- safe_cpp comp.cname;
-         comp.cfields <- kptr_fields (safe_fields comp.cfields);
+         comp.cfields <- safe_cfields comp.cfields self_visitor;
+         comp.cattr <- visitCilAttributes safeTypeVisitor comp.cattr;
          ChangeTo (TComp (comp, attr))
-      | TFun (ret, Some args, vararg, attr) ->
-         ChangeTo (TFun (ret, Some (safe_args args), vararg, attr))
-      | _ -> DoChildren
+      | _ -> ChangeTo (visitCilType safeTypeVisitor t)
+end
+let safeFieldVisitor = new safeCppFields
 
+class safeCppGlobals = object(self)
+   inherit nopCilVisitor
    method vglob (g : global) = 
       match g with
       | GCompTag (comp, loc) ->
          comp.cname <- safe_cpp comp.cname;
-         comp.cfields <- kptr_fields (safe_fields comp.cfields);
-         ChangeDoChildrenPost ([(GCompTag (comp, loc))], (fun x -> x))
-      | GType ({tname=n; ttype=t; treferenced=r}, loc) ->
-         ChangeTo ([GType ({tname=n; ttype=make_kptr t; treferenced=r}, loc)])
+         comp.cfields <- safe_cfields comp.cfields safeFieldVisitor;
+         comp.cattr <- visitCilAttributes safeTypeVisitor comp.cattr;
+         ChangeTo [GCompTag (comp, loc)]
+      | GType (t, loc) ->
+         t.ttype <- visitCilType safeTypeVisitor t.ttype;
+         ChangeTo [GType (t, loc)]
       | _ -> DoChildren
 end
 
@@ -152,20 +210,20 @@ let print_kptrs _ =
    Hashtbl.iter (fun k v -> 
       match v with 
       | KPtr (id, TVoid _, _) ->
-         fprintf !out_kptrs "MAKE_VKPTR(%d, void);\n" id
+         fprintf !out_type_list "MAKE_VKPTR(%d);\n" id
       | KPtr (id, orig_type, _) -> 
          let td_g = GType ({tname="_kptr_" ^ (string_of_int id) ^ "_t";
                               ttype=orig_type; treferenced=false},
                            {line=(-1); file=""; byte=(-1)}) in
          let t_str =
             Pretty.sprint 80 (printGlobal !printerForMaincil () td_g) in
-         fprintf !out_kptrs "MAKE_KPTR(%d, %s);\n" id t_str
+         let t_str = Str.global_replace (Str.regexp_string "\n") " " t_str in
+         fprintf !out_type_list "MAKE_KPTR(%d, %s);\n" id t_str
       ) kptr_table
 
 let print_typeapi cil_file = 
-   out_struct_list := open_out "type_list.h";
-   out_pre_defs := open_out "pre_defs.h";
-   out_kptrs := open_out "kptr_list.h";
-   visitCilFile (new safeCppTypes) cil_file;
-   visitCilFileSameGlobals (new printTypeDefs) cil_file;
+   out_type_list := Tools.output_file "type_list.h";
+   visitCilFile (new safeCppGlobals) cil_file;
+   visitCilFileSameGlobals (new printEnums) cil_file;
    print_kptrs ();
+   visitCilFileSameGlobals (new printTypeDefs) cil_file;

@@ -6,24 +6,32 @@ OBJ=cmx
 SRC=machine32.ml tools.ml allocs.ml typever.ml typeapi.ml main.ml
 OBJS=$(SRC:.ml=.$(OBJ))
 
-all: main
+DOONE_SRC=machine32.ml doone.ml
+DOONE_OBJS=$(DOONE_SRC:.ml=.$(OBJ))
+
+all: main doone
 
 main: .depend $(OBJS)
 	$(OCC) -ccopt -L$(CIL)/obj/x86_LINUX/ -o main \
 		nums.$(EXT) unix.$(EXT) str.$(EXT) $(CIL)/obj/x86_LINUX/cil.$(EXT) \
 		$(OBJS)
 
-.depend: $(SRC)
-	ocamldep -I $(CIL)/obj/x86_LINUX $(SRC) > .depend
+doone: .depend $(DOONE_OBJS)
+	$(OCC) -ccopt -L$(CIL)/obj/x86_LINUX/ -o doone \
+		nums.$(EXT) unix.$(EXT) str.$(EXT) $(CIL)/obj/x86_LINUX/cil.$(EXT) \
+		$(DOONE_OBJS)
+
+.depend: $(SRC) $(DOONE_SRC)
+	ocamldep -I $(CIL)/obj/x86_LINUX $^ > .depend
 
 %.$(OBJ): %.ml
-	$(OCC) -c -I $(CIL)/obj/x86_LINUX  $<
+	$(OCC) -c -I $(CIL)/obj/x86_LINUX $<
 
 machine32.ml:
 	echo let machine_str = \"`$(CIL)/obj/x86_LINUX/machdep-ml32.exe --env`\" \
 	> machine32.ml
 
 clean:
-	rm *.cmi *.cmx *.o .depend machine32.ml main
+	rm *.cmi *.cmx *.o .depend machine32.ml main doone
 
 include .depend

@@ -1,4 +1,5 @@
 open Cil
+open Printf
 
 open Tools
 
@@ -15,12 +16,24 @@ let is_alloc_fn f = match f with
 
 
 (* A callsite lists the dest variable, function variable, and file/line *)
-type callsite = { dst_var : varinfo; fn_var : varinfo; loc : location }
+type callsite = {
+   dst_var : varinfo;
+   fn_var : varinfo;
+   loc : location;
+   cache : string option
+}
 
 let cs_name (c : callsite) = c.fn_var.vname
 
 let cs_loc (c : callsite) = loc_str c.loc
 
+let exp_var e =
+   match e with
+   | Lval (Var v, off) -> Some v.vname
+   | _ -> None
+
+let ctype_str t =
+   Pretty.sprint 80 (!printerForMaincil#pType None () t)
 
 (* Find all allocation functions, build a list of the variables that the
    result is assigned to *)
@@ -30,16 +43,22 @@ class listInstVisitor = object(self)
    method vinst (i : instr) =
       match i with
       (* Allocator function call with variable result *)
-      | Call (Some (Var v, _), Lval (Var f, _), args, location) ->
+      | Call (Some (Var v, _), Lval (Var f, _), arg1 :: args, location) ->
          if (is_alloc_fn f.vname) then (
-            var_ids <- {dst_var = v; fn_var = f; loc = location} :: var_ids
+            var_ids <- {dst_var = v; fn_var = f; loc = location; cache = exp_var arg1} :: var_ids
          ); DoChildren
 
       (* Allocator function call with memory result *)
-      | Call (Some l, Lval (Var f, _), args, location) ->
+      | Call (Some l, Lval (Var f, _), arg1 :: args, location) ->
          if (is_alloc_fn f.vname) then (
+            match exp_var arg1 with
+            | Some cache ->
+               eprintf "\"%s\", \"%s\"\n" cache (ctype_str (typeOf (Lval l)))
+            | _ -> ()
+            (*
             print_string (f.vname ^ " " ^ (loc_str location) ^ " ");
             print_endline (type_str (typeOf (Lval l)))
+            *)
          ); DoChildren
 
       (* Other allocator function call *)
@@ -68,8 +87,14 @@ class useVisitor (var_ids : callsite list) = object(self)
          | CastE (t, Lval (Var v, off)) -> 
            (try (
               let cs = List.find (fun x -> (x.dst_var.vid = v.vid)) var_ids in
-              print_string ((cs_name cs) ^ " " ^ (cs_loc cs) ^ " ");
+              (match cs.cache with
+               | Some cache -> 
+                  eprintf "\"%s\", \"%s\"\n" cache (ctype_str t)
+               | _ -> ());
+              (*
+              print_string ((cs_name cs) ^ " " ^ (cs_loc cs) ^ " " ^ cs.cache);
               print_endline (type_str t);
+              *)
               used_ids <- cs :: used_ids
            ) with Not_found -> ());
            DoChildren
@@ -89,7 +114,7 @@ let rec print_uses uses =
 
 let check_use id uses = 
    if (List.exists (fun x -> x.dst_var.vid = id.dst_var.vid) uses) then ()
-   else (prerr_endline ("BALLS! " ^ (loc_str id.loc)))
+   else ((*prerr_endline ("BALLS! " ^ (loc_str id.loc))*)())
 
 let check_uses uses ids =
    List.iter (fun x -> check_use x uses) ids

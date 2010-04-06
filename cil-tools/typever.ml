@@ -74,8 +74,8 @@ let print_go_verify () =
    output_string !out_go_verify "0)\n"
 
 let print_typever cil_file =
-   out_do_verify := open_out "do_verify.c";
-   out_go_verify := open_out "go_verify.h";
+   out_do_verify := Tools.output_file "do_verify.c";
+   out_go_verify := Tools.output_file "go_verify.h";
    output_string !out_do_verify "#include \"go_verify.h\"\n\n";
    visitCilFileSameGlobals (new printTypeVer) cil_file;
 
