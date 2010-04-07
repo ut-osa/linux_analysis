@@ -7,7 +7,13 @@ LINUX32 := $(LINUX32-x86_64)
 
 all: osck_checks
 
-intermediates: $(LINUX)/.config
+../cil-tools/doone:
+	@echo "You must build"
+	@echo "  osck/analysis/cil-svn"
+	@echo "  osck/analysis/cil-tools"
+	@exit 1
+
+intermediates: $(LINUX)/.config ../cil-tools/doone
 	rm -rf intermediates tmp.intermediates
 	$(LINUX32) make -C $(LINUX) clean
 	$(LINUX32) make -C $(LINUX) \
@@ -17,7 +23,7 @@ intermediates: $(LINUX)/.config
 		vmlinux -j 8
 	mv tmp.intermediates intermediates
 
-osck_checks: intermediates
+osck_checks: intermediates ../cil-tools/main
 	rm -rf osck_checks tmp.osck_checks
 	mkdir tmp.osck_checks
 	$(CIL)/main $(GEN_SRC)/intermediates $(GEN_SRC)/tmp.osck_checks
