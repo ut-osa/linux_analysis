@@ -26,3 +26,6 @@ let print_loc l =
 
 let gen_src_dir = Sys.argv.(2)
 let output_file name = open_out (Filename.concat gen_src_dir name)
+
+let is_directory d =
+   (Unix.stat d).Unix.st_kind = Unix.S_DIR

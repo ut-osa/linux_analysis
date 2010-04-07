@@ -13,7 +13,7 @@ let rec expand_contents c =
    match c with
       | [] -> []
       | hdr :: cdr ->
-         if Sys.is_directory hdr then
+         if Tools.is_directory hdr then
             List.concat [(expand_contents (ls hdr)); expand_contents cdr]
          else  hdr :: expand_contents cdr
 
