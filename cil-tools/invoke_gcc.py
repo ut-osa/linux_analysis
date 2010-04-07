@@ -53,7 +53,7 @@ if compile_cmd and not asm_input:
    pre_args += ['-E', '-o', output]
    try:
       os.makedirs(output_dir)
-   except OSError as (err, strerror):
+   except OSError, (err, strerror):
       if err != errno.EEXIST:
          raise
 
