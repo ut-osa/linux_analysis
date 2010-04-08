@@ -69,6 +69,6 @@ let () =
    (* Run the analysis *)
    flush stderr;
    prerr_endline "ANALYZING";
-   print_all_allocs kernel;
    print_typever kernel;
+   print_all_allocs kernel;
    print_typeapi kernel

@@ -3,16 +3,23 @@ open Printf
 
 open Tools
 
+let out_cache_types = ref stdout
+
+type alloc_fn_types =
+   | CacheAlloc
+   | GenAlloc
+   | NotAlloc
+
 (* List of all known allocation functions *)
-let is_alloc_fn f = match f with
+let alloc_fn_type f = match f with
    | "kmem_cache_alloc"
    | "kmem_cache_alloc_notrace"
-   | "kmem_cache_zalloc"
+   | "kmem_cache_zalloc" -> CacheAlloc
    | "kmalloc"
    | "kmalloc_node"
    | "kzalloc" 
-   | "kzalloc_node" -> true
-   | f -> false
+   | "kzalloc_node" -> GenAlloc
+   | f -> NotAlloc
 
 
 (* A callsite lists the dest variable, function variable, and file/line *)
@@ -32,8 +39,18 @@ let exp_var e =
    | Lval (Var v, off) -> Some v.vname
    | _ -> None
 
+let pointed_type t =
+   let t = unrollType t in
+   match t with
+   | TPtr (pt, attr) -> Some pt
+   | _ -> None
+
 let ctype_str t =
    Pretty.sprint 80 (!printerForMaincil#pType None () t)
+
+let print_cache_type cache t loc =
+   fprintf !out_cache_types "CACHE_TYPE(\"%s\", \"%s\", %d) /* %s */\n"
+      cache (ctype_str t) (Typever.find_type t) (loc_str loc)
 
 (* Find all allocation functions, build a list of the variables that the
    result is assigned to *)
@@ -44,16 +61,19 @@ class listInstVisitor = object(self)
       match i with
       (* Allocator function call with variable result *)
       | Call (Some (Var v, _), Lval (Var f, _), arg1 :: args, location) ->
-         if (is_alloc_fn f.vname) then (
+         if (alloc_fn_type f.vname = CacheAlloc) then (
             var_ids <- {dst_var = v; fn_var = f; loc = location; cache = exp_var arg1} :: var_ids
          ); DoChildren
 
       (* Allocator function call with memory result *)
       | Call (Some l, Lval (Var f, _), arg1 :: args, location) ->
-         if (is_alloc_fn f.vname) then (
+         if (alloc_fn_type f.vname = CacheAlloc) then (
             match exp_var arg1 with
-            | Some cache ->
-               eprintf "\"%s\", \"%s\"\n" cache (ctype_str (typeOf (Lval l)))
+            | Some cache -> (
+               match pointed_type (typeOf (Lval l)) with
+               | Some pt -> print_cache_type cache pt location
+               | None -> ()
+            )
             | _ -> ()
             (*
             print_string (f.vname ^ " " ^ (loc_str location) ^ " ");
@@ -63,7 +83,7 @@ class listInstVisitor = object(self)
 
       (* Other allocator function call *)
       | Call (None, Lval (Var f, _), args, location) ->
-         if (is_alloc_fn f.vname) then (
+         if (alloc_fn_type f.vname = CacheAlloc) then (
             print_string "**";
             print_loc location
          ); DoChildren
@@ -88,8 +108,11 @@ class useVisitor (var_ids : callsite list) = object(self)
            (try (
               let cs = List.find (fun x -> (x.dst_var.vid = v.vid)) var_ids in
               (match cs.cache with
-               | Some cache -> 
-                  eprintf "\"%s\", \"%s\"\n" cache (ctype_str t)
+               | Some cache -> (
+                  match pointed_type t with
+                  | Some pt -> print_cache_type cache pt cs.loc
+                  | None -> ()
+               )
                | _ -> ());
               (*
               print_string ((cs_name cs) ^ " " ^ (cs_loc cs) ^ " " ^ cs.cache);
@@ -124,17 +147,17 @@ let check_uses uses ids =
 class fnVisitor = object(self)
    inherit nopCilVisitor
    method vfunc (f : fundec) =
-      if not (is_alloc_fn f.svar.vname) then (
+      if not (alloc_fn_type f.svar.vname != NotAlloc) then (
          let visit = (new listInstVisitor) in
          let _ = visitCilFunction (visit :> cilVisitor) f in
          let use = (new useVisitor (visit#get_ids)) in
          ignore (visitCilFunction (use :> cilVisitor) f);
          check_uses use#get_ids visit#get_ids
-         (* print_endline ("Visited " ^ f.svar.vname); *)
-      ) else ((*print_endline ("Skipped " ^ f.svar.vname)*));
+      );
       SkipChildren
 end
 
 let print_all_allocs cil_file = 
+   out_cache_types := Tools.output_file "cache_types.h";
    ignore (visitCilFileSameGlobals (new fnVisitor) cil_file);
    ()

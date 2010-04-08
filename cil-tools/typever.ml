@@ -8,9 +8,12 @@ let type_table = Hashtbl.create 1024
 let out_do_verify = ref stdout
 let out_go_verify = ref stdout
 
+let find_type t =
+   let ts = typeSig t in Hashtbl.find type_table ts
+
 let type_id t =
    let ts = typeSig t in
-   try (Hashtbl.find type_table ts) with
+   try Hashtbl.find type_table ts with
    | Not_found ->
       let id = !n_types in
       Hashtbl.add type_table ts id;
