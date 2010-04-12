@@ -71,8 +71,9 @@ class listInstVisitor = object(self)
             match exp_var arg1 with
             | Some cache -> (
                match pointed_type (typeOf (Lval l)) with
-               | Some pt -> print_cache_type cache pt location
-               | None -> ()
+               | Some pt when not (isIntegralType pt) ->
+                  print_cache_type cache pt location
+               | _ -> ()
             )
             | _ -> ()
             (*
@@ -110,8 +111,9 @@ class useVisitor (var_ids : callsite list) = object(self)
               (match cs.cache with
                | Some cache -> (
                   match pointed_type t with
-                  | Some pt -> print_cache_type cache pt cs.loc
-                  | None -> ()
+                  | Some pt when not (isIntegralType pt) ->
+                     print_cache_type cache pt cs.loc
+                  | _ -> ()
                )
                | _ -> ());
               (*
