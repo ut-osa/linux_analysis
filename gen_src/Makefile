@@ -3,8 +3,6 @@ KBUILDD := $(abspath kbuild)
 CIL := $(abspath ../cil-tools)
 GEN_SRC := $(abspath .)
 
-CONFIG=ubuntu.config
-
 LINUX32-$(shell uname -m) := linux32
 LINUX32 := $(LINUX32-x86_64)
 
