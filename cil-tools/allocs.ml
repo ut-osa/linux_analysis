@@ -4,6 +4,7 @@ open Printf
 open Tools
 
 let out_cache_types = ref stdout
+let out_alloc_report = ref stdout
 
 type alloc_fn_types =
    | CacheAlloc
@@ -45,12 +46,13 @@ let pointed_type t =
    | TPtr (pt, attr) -> Some pt
    | _ -> None
 
-let ctype_str t =
-   Pretty.sprint 80 (!printerForMaincil#pType None () t)
-
-let print_cache_type cache t loc =
-   fprintf !out_cache_types "CACHE_TYPE(\"%s\", \"%s\", %d) /* %s */\n"
-      cache (ctype_str t) (Typever.find_type t) (loc_str loc)
+let print_cache_type alloc_type cache t loc =
+   match alloc_type with
+   | CacheAlloc -> 
+      fprintf !out_cache_types "CACHE_TYPE(\"%s\", \"%s\", %d) /* %s */\n"
+         cache (ctype_str t) (Typever.find_type t) (loc_str loc)
+   | GenAlloc -> fprintf !out_alloc_report "%s @ %s\n" (ctype_str t)
+      (loc_str loc)
 
 (* Find all allocation functions, build a list of the variables that the
    result is assigned to *)
@@ -61,18 +63,19 @@ class listInstVisitor = object(self)
       match i with
       (* Allocator function call with variable result *)
       | Call (Some (Var v, _), Lval (Var f, _), arg1 :: args, location) ->
-         if (alloc_fn_type f.vname = CacheAlloc) then (
+         if (alloc_fn_type f.vname != NotAlloc) then (
             var_ids <- {dst_var = v; fn_var = f; loc = location; cache = exp_var arg1} :: var_ids
          ); DoChildren
 
       (* Allocator function call with memory result *)
       | Call (Some l, Lval (Var f, _), arg1 :: args, location) ->
-         if (alloc_fn_type f.vname = CacheAlloc) then (
+         let alloc_type  = alloc_fn_type f.vname in
+         if (alloc_type != NotAlloc) then (
             match exp_var arg1 with
             | Some cache -> (
                match pointed_type (typeOf (Lval l)) with
                | Some pt when not (isIntegralType pt) ->
-                  print_cache_type cache pt location
+                  print_cache_type alloc_type cache pt location
                | _ -> ()
             )
             | _ -> ()
@@ -112,7 +115,8 @@ class useVisitor (var_ids : callsite list) = object(self)
                | Some cache -> (
                   match pointed_type t with
                   | Some pt when not (isIntegralType pt) ->
-                     print_cache_type cache pt cs.loc
+                     print_cache_type (alloc_fn_type cs.fn_var.vname) cache pt
+                        cs.loc
                   | _ -> ()
                )
                | _ -> ());
@@ -161,5 +165,6 @@ end
 
 let print_all_allocs cil_file = 
    out_cache_types := Tools.output_file "cache_types.h";
+   out_alloc_report := Tools.output_file "alloc_report.txt";
    ignore (visitCilFileSameGlobals (new fnVisitor) cil_file);
    ()

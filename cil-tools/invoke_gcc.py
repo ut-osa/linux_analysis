@@ -17,6 +17,7 @@ exe = i.next()
 pre_args = ['gcc']
 all_args = ['gcc']
 compile_cmd = False
+d_module = False
 asm_input = False
 output = None
 output_dir = None
@@ -38,6 +39,8 @@ while True:
       output_dir,output = os.path.split(arg)
    elif arg == '-c':
       compile_cmd = True
+   elif arg == '-DMODULE':
+      d_module = True
    elif arg[-2:] == '.S':
       asm_input = True
    else:
@@ -46,7 +49,7 @@ while True:
    all_args.append(arg)
 
 
-if compile_cmd and not asm_input:
+if compile_cmd and (not d_module) and (not asm_input):
    output_dir = os.path.join(output_base, output_dir)
    output_file = 'i'+output+'.i'
    output = os.path.join(output_dir, output_file)

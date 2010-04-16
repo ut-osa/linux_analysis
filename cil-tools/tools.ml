@@ -29,3 +29,7 @@ let output_file name = open_out (Filename.concat gen_src_dir name)
 
 let is_directory d =
    (Unix.stat d).Unix.st_kind = Unix.S_DIR
+
+let ctype_str t =
+   Pretty.sprint 80 (!printerForMaincil#pType None () t)
+

@@ -223,7 +223,7 @@ let print_kptrs _ =
 
 let print_typeapi cil_file = 
    out_type_list := Tools.output_file "type_list.h";
-   visitCilFile (new safeCppGlobals) cil_file;
    visitCilFileSameGlobals (new printEnums) cil_file;
+   visitCilFile (new safeCppGlobals) cil_file;
    print_kptrs ();
    visitCilFileSameGlobals (new printTypeDefs) cil_file;

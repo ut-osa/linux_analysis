@@ -3,7 +3,7 @@ OCC=ocamlopt
 EXT=cmxa
 OBJ=cmx
 
-SRC=machine32.ml tools.ml typever.ml allocs.ml typeapi.ml main.ml
+SRC=machine32.ml tools.ml castreport.ml typever.ml allocs.ml typeapi.ml main.ml
 OBJS=$(SRC:.ml=.$(OBJ))
 
 DOONE_SRC=machine32.ml doone.ml
