@@ -53,6 +53,7 @@ let print_cache_type alloc_type cache t loc =
          cache (ctype_str t) (Typever.find_type t) (loc_str loc)
    | GenAlloc -> fprintf !out_alloc_report "%s @ %s\n" (ctype_str t)
       (loc_str loc)
+   | _ -> ()
 
 (* Find all allocation functions, build a list of the variables that the
    result is assigned to *)

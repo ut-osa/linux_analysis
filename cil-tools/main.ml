@@ -1,6 +1,5 @@
 open Cil
 open Allocs
-open Castreport
 open Typever
 open Typeapi
 open Machine32
@@ -72,5 +71,4 @@ let () =
    prerr_endline "ANALYZING";
    print_typever kernel;
    print_all_allocs kernel;
-   print_cast_report kernel;
    print_typeapi kernel
