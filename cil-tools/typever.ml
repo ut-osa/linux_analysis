@@ -99,17 +99,20 @@ class printTypeVer = object(self)
 
 end
 
+let define_go_verify_type tid =
+   fprintf !out_go_verify "#define go_verify_%d(ptr) (1)\n\n" tid
+
 let print_go_verify_type ts tid =
    let ts_cval = typesig_cval ts in
-   fprintf !out_go_verify "static inline int go_verify_%s(char *ptr) {"
-      ts_cval;
    match ts with
    | TSComp _ -> (
-      try Hashtbl.find do_verify_set ts; 
-          fprintf !out_go_verify " return do_verify_%s(ptr); }\n\n" ts_cval
-      with Not_found -> output_string !out_go_verify " return 1; }\n\n"
+      try
+         Hashtbl.find do_verify_set ts; 
+         fprintf !out_go_verify "#define go_verify_%d(ptr) " tid;
+         fprintf !out_go_verify "(do_verify_%s(ptr))\n\n" ts_cval
+      with Not_found -> define_go_verify_type tid
    )
-   | ts -> output_string !out_go_verify " return 1; }\n\n"
+   | ts -> define_go_verify_type tid
 
 let print_go_verify () =
    Hashtbl.iter print_go_verify_type type_table
