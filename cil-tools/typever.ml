@@ -88,13 +88,19 @@ class printTypeVer = object(self)
    inherit nopCilVisitor
    method vglob (g : global) =
       match g with
-      | GCompTag (comp, loc) ->
+      | GCompTag (comp, loc) -> (
          let comp_t = TComp (comp, []) in
-         Hashtbl.add do_verify_set (noAttrTypeSig comp_t) ();
-         print_comp_fn_begin comp_t;
-         List.iter (print_comp_field comp_t) comp.cfields;
-         print_comp_fn_end comp_t;
-         DoChildren
+         try
+            Hashtbl.find do_verify_set (noAttrTypeSig comp_t);
+            SkipChildren
+         with
+         | Not_found ->
+            Hashtbl.add do_verify_set (noAttrTypeSig comp_t) ();
+            print_comp_fn_begin comp_t;
+            List.iter (print_comp_field comp_t) comp.cfields;
+            print_comp_fn_end comp_t;
+            DoChildren
+      )
       | g -> DoChildren
 
 end
@@ -163,6 +169,10 @@ let print_sym_footer _ =
    output_string !out_sym_types
       "int n_sym_types = sizeof(sym_types)/sizeof(sym_types[0]);\n"
 
+let print_sym_types typever f =
+   prerr_string (Filename.basename f.fileName);
+   visitCilFileSameGlobals typever f
+
 let print_type_enum _ =
    output_string !out_type_enum "enum type_ids {\n";
    let print_type_id ts _ =
@@ -177,7 +187,11 @@ let print_type_enum _ =
    Hashtbl.iter print_type_id do_verify_set;
    output_string !out_type_enum "};\n"
 
-let print_typever cil_file =
+let print_type_ver typever f =
+   prerr_string (Filename.basename f.fileName);
+   visitCilFileSameGlobals typever f
+
+let print_typever parsed_files =
    out_do_verify := Tools.output_file "do_verify.c";
    out_go_verify := Tools.output_file "go_verify.h";
    out_type_offsets := Tools.output_file "type_offsets.c";
@@ -186,14 +200,17 @@ let print_typever cil_file =
    output_string !out_do_verify
       "#include \"go_verify.h\"\n#include \"typedefs.h\"\n\n";
    output_string !out_type_offsets "typedef int typeoff_map_t[2];\n\n";
-   visitCilFileSameGlobals (new printTypeVer) cil_file;
+   (* visitCilFileSameGlobals (new printTypeVer) cil_file; *)
+
+   progress_iter "typever" (print_type_ver (new printTypeVer)) parsed_files;
 
    print_go_verify ();
    print_verify_map ();
    print_field_names();
 
    print_sym_header ();
-   visitCilFileSameGlobals (new printSymTypes) cil_file;
+   progress_iter "symtypes" (print_sym_types (new printSymTypes)) parsed_files;
+   (* visitCilFileSameGlobals (new printSymTypes) cil_file; *)
    print_sym_footer();
 
    print_type_enum ();

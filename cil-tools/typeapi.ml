@@ -1,8 +1,27 @@
 open Cil
 open Printf
+open Tools
 
 let out_type_list = ref stdout
 
+(* Track visited types *)
+let visited_table _ = Hashtbl.create 1024
+
+let visit_type table t =
+   let ts = noAttrTypeSig t in
+   if Hashtbl.mem table ts then false
+   else (
+      Hashtbl.add table ts 0;
+      true
+   )
+
+let check_visit table t =
+   Hashtbl.mem table (typeSig t)
+
+let type_table = visited_table ()
+let enum_table = visited_table ()
+
+(* Track visited types for kptrs, and substitute in kptr structs *)
 type kptr =
 | KPtr of int * typ * typ
 
@@ -14,11 +33,12 @@ let kptr_fields t comp =
 
 let kptr_typ t =
    let ts = typeSig t in
-   try (Hashtbl.find kptr_table ts) with
+   try Hashtbl.find kptr_table ts with
    | Not_found ->
       let id = !n_kptrs in
-      let kt = mkCompInfo true ("kptr_" ^ string_of_int id) (kptr_fields t) []
-         in
+      let
+         kt = mkCompInfo true ("kptr_" ^ string_of_int id) (kptr_fields t) []
+      in
       let k = KPtr (id, t, TComp (kt, [])) in
       Hashtbl.add kptr_table ts k;
       incr n_kptrs;
@@ -26,14 +46,14 @@ let kptr_typ t =
 
 let rec make_kptr t =
    match t with
-   | TPtr (pt, a) -> let baset = unrollType pt in (
-      match baset with
+   | TPtr (pt, a) ->
+      (match unrollType pt with
       | TFun _ -> t
-      | _ -> 
+      | _ ->
          let pt = make_kptr pt in
          let KPtr (id, ot, kt) = kptr_typ pt in
          kt
-   )
+      )
    | TArray (t, e, a) -> TArray (make_kptr t, e, a)
    | t -> t
 
@@ -92,24 +112,42 @@ class printEnums = object(self)
    inherit nopCilVisitor
    method vglob (g : global) =
       match g with
-      | GEnumTag _ -> print_defn g; DoChildren
+      | GEnumTag (enum,_) ->
+         let enum_t = TEnum (enum,[]) in
+         if (visit_type type_table enum_t) && (check_visit enum_table enum_t)
+         then (
+            print_defn g;
+            DoChildren
+         ) else SkipChildren
+      | _ -> DoChildren
+   
+end
+
+class findEnums = object(self)
+   inherit nopCilVisitor
+   method vtype (t : typ) =
+      match (unrollType t) with
+      | TEnum (enum,_) ->
+         ignore (visit_type enum_table (TEnum (enum, [])));
+         DoChildren
       | _ -> DoChildren
 end
+let enumFinder = new findEnums
 
 class printTypeDefs = object(self)
    inherit nopCilVisitor
    method vglob (g : global) =
       match g with
-      (*
-      | GType ({tname=n}, _) when (cpp_builtin n) -> DoChildren
-      | GType _ -> print_defn g; DoChildren
-      *)
-
-      (* | GEnumTag _ -> print_pre_def g; DoChildren *)
-
-      | GCompTag _
-      | GCompTagDecl _ -> print_defn g; DoChildren
-      (* | GEnumTagDecl _ -> print_defn g; DoChildren *)
+      | GCompTag (comp, _) ->
+         if visit_type type_table (TComp (comp, [])) then (
+            print_defn g;
+            DoChildren
+         ) else SkipChildren
+      | GCompTagDecl (comp, _) -> 
+         if not (check_visit type_table (TComp (comp, []))) then (
+            print_defn g;
+            DoChildren
+         ) else SkipChildren
       | g -> DoChildren
 end
 
@@ -171,7 +209,8 @@ let rec safe_cfields cfields visitor =
       fi.fname <- safe_cpp fi.fname;
       fi.ftype <- visitCilType visitor fi.ftype;
       fi.fattr <- visitCilAttributes safeTypeVisitor fi.fattr;
-      fi in
+      fi
+   in
    match cfields with
    | fi :: rest -> safe_cfield fi :: safe_cfields rest visitor
    | [] -> []
@@ -195,6 +234,10 @@ class safeCppGlobals = object(self)
    method vglob (g : global) = 
       match g with
       | GCompTag (comp, loc) ->
+         (* Pick up any enums in this struct *)
+         if visit_type type_table (TComp (comp, [])) then (
+            ignore (visitCilGlobal enumFinder g)
+         );
          comp.cname <- safe_cpp comp.cname;
          comp.cfields <- safe_cfields comp.cfields safeFieldVisitor;
          comp.cattr <- visitCilAttributes safeTypeVisitor comp.cattr;
@@ -221,9 +264,20 @@ let print_kptrs _ =
          fprintf !out_type_list "MAKE_KPTR(%d, %s);\n" id t_str
       ) kptr_table
 
-let print_typeapi cil_file = 
+let visit_file visitor f =
+   prerr_string (Filename.basename f.fileName);
+   visitCilFile visitor f
+
+let print_typeapi parsed_files = 
    out_type_list := Tools.output_file "type_list.h";
-   visitCilFileSameGlobals (new printEnums) cil_file;
-   visitCilFile (new safeCppGlobals) cil_file;
+
+   lineDirectiveStyle := Some LineComment;
+
+   progress_iter "cppsafe" (visit_file (new safeCppGlobals)) parsed_files;
+
+   progress_iter "enums" (visit_file (new printEnums)) parsed_files;
+
    print_kptrs ();
-   visitCilFileSameGlobals (new printTypeDefs) cil_file;
+
+   Hashtbl.clear type_table;
+   progress_iter "defns" (visit_file (new printTypeDefs)) parsed_files;

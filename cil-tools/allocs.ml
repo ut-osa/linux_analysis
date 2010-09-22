@@ -164,8 +164,11 @@ class fnVisitor = object(self)
       SkipChildren
 end
 
-let print_all_allocs cil_file = 
+let visit_fns visitor f =
+   prerr_string (Filename.basename f.fileName);
+   visitCilFileSameGlobals visitor f
+
+let print_all_allocs parsed_files = 
    out_cache_types := Tools.output_file "cache_types.h";
    out_alloc_report := Tools.output_file "alloc_report.txt";
-   ignore (visitCilFileSameGlobals (new fnVisitor) cil_file);
-   ()
+   progress_iter "allocs" (visit_fns (new fnVisitor)) parsed_files

@@ -3,10 +3,16 @@ OCC=ocamlopt
 EXT=cmxa
 OBJ=cmx
 
-SRC=machine32.ml tools.ml typever.ml allocs.ml typeapi.ml main.ml
+ARCH = x86_64
+BITS_x86_64 = 64
+BITS_i386 = 32
+
+BITS = ${BITS_$(ARCH)}
+
+SRC=machine.ml tools.ml typever.ml allocs.ml typeapi.ml main.ml
 OBJS=$(SRC:.ml=.$(OBJ))
 
-DOONE_SRC=machine32.ml doone.ml
+DOONE_SRC=machine.ml doone.ml
 DOONE_OBJS=$(DOONE_SRC:.ml=.$(OBJ))
 
 all: main doone
@@ -27,11 +33,11 @@ doone: .depend $(DOONE_OBJS)
 %.$(OBJ): %.ml
 	$(OCC) -c -I $(CIL)/obj/x86_LINUX $<
 
-machine32.ml:
-	echo let machine_str = \"`$(CIL)/obj/x86_LINUX/machdep-ml32.exe --env`\" \
-	> machine32.ml
+machine.ml:
+	echo let machine_str = \
+      \"`$(CIL)/obj/x86_LINUX/machdep-ml$(BITS).exe --env`\" > machine.ml
 
 clean:
-	rm *.cmi *.cmx *.o .depend machine32.ml main doone
+	rm *.$(EXT) *.$(OBJ) *.o .depend $(MACHINE_ML) main doone
 
 include .depend

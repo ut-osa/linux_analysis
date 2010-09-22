@@ -11,6 +11,8 @@ let fname e =
    | Lval l -> lfname l
    | e -> "<UNKNOWN>"
 
+let noAttrTypeSig t = typeSigWithAttrs (fun x -> []) t
+
 let typesig_str ts =
    let d = d_typsig () ts in
    Pretty.sprint 10000 d
@@ -33,3 +35,20 @@ let is_directory d =
 let ctype_str t =
    Pretty.sprint 80 (!printerForMaincil#pType None () t)
 
+let progress_map id f l =
+   let num = List.length l in
+   let fi = ref 0 in
+   List.map (fun item -> 
+         incr fi;
+         prerr_string (id ^ " ");
+         prerr_int !fi; prerr_char '/'; prerr_int num; prerr_char ' ';
+         let res = f item in (prerr_newline (); res)) l
+
+let progress_iter id f l =
+   let num = List.length l in
+   let fi = ref 0 in
+   List.iter (fun item -> 
+         incr fi;
+         prerr_string (id ^ " ");
+         prerr_int !fi; prerr_char '/'; prerr_int num; prerr_char ' ';
+         let res = f item in (prerr_newline (); res)) l

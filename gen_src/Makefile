@@ -3,8 +3,11 @@ KBUILDD := $(abspath kbuild)
 CIL := $(abspath ../cil-tools)
 GEN_SRC := $(abspath .)
 
-LINUX32-$(shell uname -m) := linux32
-LINUX32 := $(LINUX32-x86_64)
+HOST_ARCH=$(shell uname -m)
+KERNEL_ARCH=x86_64
+
+LINUX32_x86_64_i386 := linux32
+LINUX32 := ${LINUX32_$(HOST_ARCH)_$(KERNEL_ARCH)}
 
 all: osck_checks
 

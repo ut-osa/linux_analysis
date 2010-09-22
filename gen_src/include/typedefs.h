@@ -17,4 +17,6 @@ extern const char *field_names[];
 typedef int typeoff_map_t[2];
 extern typeoff_map_t *all_typeoff_maps[];
 
+int ptr_verify(int type_id, int field_name, void *ptr_field_address);
+
 #endif

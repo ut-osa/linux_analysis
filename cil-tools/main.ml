@@ -2,7 +2,8 @@ open Cil
 open Allocs
 open Typever
 open Typeapi
-open Machine32
+open Machine
+open Tools
 
 
 (* Put the contents of dir in a list *)
@@ -36,9 +37,20 @@ let () =
    let contents = expand_contents contents in
 
    (* Parse each file *)
-   let num_files = List.length contents in
-   let fi = ref 0 in
-   let parsed_files = prune_files (List.map (fun filename ->
+   let parsed_files = prune_files (progress_map "load" (fun filename ->
+         prerr_string (Filename.basename filename); 
+         match Filename.basename filename with
+         | "i.tmp_vdso32-setup.o.i" -> 
+            prerr_string " SKIPPING"; None
+         | _ -> 
+            (* let file = (Frontc.parse filename) () in *)
+            let in_c = open_in_bin filename in
+            let file = (Marshal.from_channel in_c : Cil.file) in
+            let () = close_in in_c in
+            (* let () = Rmtmps.removeUnusedTemps file in *)
+            Some file
+         ) contents)
+   (* let parsed_files = prune_files (List.map (fun filename ->
          incr fi;
          prerr_int !fi; prerr_char '/'; prerr_int num_files;
          prerr_string (" " ^ Filename.basename filename); 
@@ -53,14 +65,14 @@ let () =
             let () = close_in in_c in
             (* let () = Rmtmps.removeUnusedTemps file in *)
             Some file
-         ) contents)
+         ) contents) *)
    in
 
    let () = Cil.initCIL () in
 
 
    (* Merge all files into one *)
-   let kernel = prerr_endline "MERGING"; Mergecil.merge parsed_files "test" in
+   (* let kernel = prerr_endline "MERGING"; Mergecil.merge parsed_files "test" in *)
 
    (* Dump the processed C *)
    (* let oc = open_out "blah.c" in
@@ -69,6 +81,6 @@ let () =
    (* Run the analysis *)
    flush stderr;
    prerr_endline "ANALYZING";
-   print_typever kernel;
-   print_all_allocs kernel;
-   print_typeapi kernel
+   print_typever parsed_files;
+   print_all_allocs parsed_files;
+   print_typeapi parsed_files

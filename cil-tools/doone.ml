@@ -1,5 +1,5 @@
 open Cil
-open Machine32
+open Machine
 
 let () = 
    (* Change machine model *)

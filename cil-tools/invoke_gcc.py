@@ -14,14 +14,19 @@ import sys,os,errno
 i = iter(sys.argv)
 exe = i.next()
 
+#print >>sys.stderr, "***",sys.argv
+
 pre_args = ['gcc']
 all_args = ['gcc']
 compile_cmd = False
 d_module = False
+d_genksyms = False
 asm_input = False
 output = None
 output_dir = None
 output_base = None
+
+trouble_files = ['i.tmp_vdso32-setup.o.i', 'i.tmp_syscall_64.o.i']
 
 while True:
    try:
@@ -41,6 +46,8 @@ while True:
       compile_cmd = True
    elif arg == '-DMODULE':
       d_module = True
+   elif arg == '-D__GENKSYMS__':
+      d_genksyms = True
    elif arg[-2:] == '.S':
       asm_input = True
    else:
@@ -48,8 +55,9 @@ while True:
 
    all_args.append(arg)
 
+mc_output = (output is not None) and output.startswith(".tmp_mc_")
 
-if compile_cmd and (not d_module) and (not asm_input):
+if compile_cmd and (not d_module) and (not asm_input) and (not mc_output):
    output_dir = os.path.join(output_base, output_dir)
    output_file = 'i'+output+'.i'
    output = os.path.join(output_dir, output_file)
@@ -64,7 +72,7 @@ if compile_cmd and (not d_module) and (not asm_input):
    if ret is not 0:
       sys.exit(ret)
 
-   if output_file != 'i.tmp_vdso32-setup.o.i':
+   if output_file not in trouble_files:
       doone_exe = os.path.join(os.path.dirname(sys.argv[0]), 'doone')
       ret = os.spawnvp(os.P_WAIT, doone_exe, [doone_exe, output])
       if ret is not 0:
