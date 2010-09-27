@@ -11,7 +11,7 @@ LINUX32 := ${LINUX32_$(HOST_ARCH)_$(KERNEL_ARCH)}
 
 all: osck_checks
 
-../cil-tools/doone:
+../cil-tools/%:
 	@echo "You must build"
 	@echo "  osck/analysis/cil-svn"
 	@echo "  osck/analysis/cil-tools"
@@ -25,7 +25,7 @@ kbuild:
 	mkdir -p kbuild
 	$(LINUX32) make -C $(LINUX) O=$(KBUILDD) defconfig
 
-intermediates: kbuild kernel.config
+intermediates: kbuild kernel.config ../cil-tools/doone
 	rm -rf intermediates tmp.intermediates
 	mkdir tmp.intermediates
 	$(LINUX32) make -C kbuild clean
