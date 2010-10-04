@@ -42,6 +42,7 @@ osck_checks: intermediates ../cil-tools/main
 	rm -rf osck_checks tmp.osck_checks
 	mkdir tmp.osck_checks
 	$(CIL)/main $(GEN_SRC)/intermediates $(GEN_SRC)/tmp.osck_checks
+	cp kbuild/include/linux/autoconf.h tmp.osck_checks/autoconf.h
 	mv tmp.osck_checks osck_checks
 
 clean:
