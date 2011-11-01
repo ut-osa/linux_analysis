@@ -1,0 +1,20 @@
+cil-svn/
+For convenience, this repository contains the cil svn tree that was current
+at the time of development.  The exact revision may have been lost to the
+ages, but it was likely HEAD around 4/11/2010.  This should be built first.
+
+cil-tools/
+A set of functions that explore the tree provided by CIL and produce
+interesting output in the form of C source.  Most of this is organized by
+the numeric id assigned to each type in typever.ml.  invoke_gcc.py is a
+wrapper for gcc used to build the analysis - it contains a blacklist of any
+files that CIL just can't seem to handle.
+
+gen_src/
+Build directory for analyzed kernel and output directory for generated C
+source.  Uses gen_src/kernel.config as a config file to build the desired
+kernel, as specified by the LINUX and KERNEL_ARCH variables in Makefile.
+
+parse_dwarf/
+Stale code for looking at textual dumps of DWARF information.  Here be
+dragons.
