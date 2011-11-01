@@ -1,4 +1,15 @@
 #!/usr/bin/python
+
+# linux_analysis project
+# File name: explore_dwarf.py
+# 
+# Description: 
+# 
+# Operating Systems & Architecture Group
+# University of Texas at Austin - Department of Computer Sciences
+# Copyright 2010, 2011. All Rights Reserved.
+# See LICENSE file for license terms.
+
 import sys
 import cPickle
 import heapq

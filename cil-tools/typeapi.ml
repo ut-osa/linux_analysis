@@ -1,3 +1,15 @@
+(*
+ * linux_analysis project
+ * File name: typeapi.ml
+ * 
+ * Description: 
+ * 
+ * Operating Systems & Architecture Group
+ * University of Texas at Austin - Department of Computer Sciences
+ * Copyright 2010, 2011. All Rights Reserved.
+ * See LICENSE file for license terms.
+ *)
+
 open Cil
 open Printf
 open Tools
