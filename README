@@ -18,6 +18,3 @@ kernel, as specified by the LINUX and KERNEL_ARCH variables in Makefile.
 parse_dwarf/
 Stale code for looking at textual dumps of DWARF information.  Here be
 dragons.
-
-
-See github.com/ut-osa/xr for a more up-to-date version.
